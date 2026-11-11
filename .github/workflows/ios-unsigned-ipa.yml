@@ -1,0 +1,64 @@
+# Builds an unsigned VisionClaw .ipa on a GitHub macOS runner, for sideloading
+# from Windows with Sideloadly (free Apple ID; re-sign every 7 days).
+name: iOS unsigned IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["samples/CameraAccess/**", ".github/workflows/ios-unsigned-ipa.yml"]
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: samples/CameraAccess
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s "$(ls -d /Applications/Xcode_16*.app | sort -V | tail -1)"
+
+      # Gateway URL/token can also be changed at runtime from the access-code
+      # screen ("Using your own gateway?"), so these repo secrets are optional.
+      - name: Create Secrets.swift
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GATEWAY_URL: ${{ secrets.GATEWAY_URL }}
+        run: |
+          cp CameraAccess/Secrets.swift.example CameraAccess/Secrets.swift
+          if [ -n "$GEMINI_API_KEY" ]; then
+            sed -i '' "s|YOUR_GEMINI_API_KEY|$GEMINI_API_KEY|" CameraAccess/Secrets.swift
+          fi
+          if [ -n "$GATEWAY_URL" ]; then
+            sed -i '' "s|https://api.visionagents.app|$GATEWAY_URL|" CameraAccess/Secrets.swift
+          fi
+
+      - name: Build (no code signing)
+        run: |
+          xcodebuild build \
+            -project CameraAccess.xcodeproj \
+            -scheme CameraAccess \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            META_APP_ID=0 \
+            CLIENT_TOKEN=0
+
+      - name: Package IPA
+        run: |
+          APP=$(find build/Build/Products/Release-iphoneos -maxdepth 1 -name '*.app' | head -1)
+          mkdir -p Payload
+          cp -R "$APP" Payload/
+          zip -qry VisionClaw-unsigned.ipa Payload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: VisionClaw-unsigned-ipa
+          path: samples/CameraAccess/VisionClaw-unsigned.ipa
