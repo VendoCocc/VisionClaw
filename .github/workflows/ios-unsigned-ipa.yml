@@ -19,7 +19,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Select Xcode
-        run: sudo xcode-select -s "$(ls -d /Applications/Xcode_16*.app | sort -V | tail -1)"
+        run: sudo xcode-select -s "$(ls -d /Applications/Xcode_2[6-9]*.app /Applications/Xcode_16*.app 2>/dev/null | sort -V | tail -1)"
 
       # Gateway URL/token can also be changed at runtime from the access-code
       # screen ("Using your own gateway?"), so these repo secrets are optional.
