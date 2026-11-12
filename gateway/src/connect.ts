@@ -515,6 +515,12 @@ export function registerConnectRoutes(
       res.status(401).json({ error: { message: "invalid or missing gateway token" } });
       return;
     }
+    // Voice-only self-hosting (no Anthropic key): there is no vault to list,
+    // but the app still uses this route to validate its access code.
+    if (!process.env.ANTHROPIC_API_KEY) {
+      res.json({ apps: [] });
+      return;
+    }
     try {
       const { vaultId } = await ensureUser(userId);
       const credentialByUrl = new Map<string, string>();
