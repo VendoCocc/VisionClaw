@@ -247,6 +247,7 @@ class StreamSessionViewModel: ObservableObject {
     guard let session = deviceSession, session.state == .started else { return }
     do {
       guard let newCamera = try session.addCamera(config: streamConfig()) else {
+        glassesErrorDetail = "addCamera returned nil"
         glassesIssue = .reconnecting
         return
       }
@@ -263,6 +264,7 @@ class StreamSessionViewModel: ObservableObject {
     } catch {
       camera = nil
       // Sleeping or out-of-range glasses are a wait, not a hard error.
+      glassesErrorDetail = "session: \(error)"
       glassesIssue = mapDeviceSessionError(error)
     }
   }
@@ -385,6 +387,7 @@ class StreamSessionViewModel: ObservableObject {
         case .permissionDenied:
           self.glassesIssue = .permissionNeeded
         default:
+          self.glassesErrorDetail = "stream: \(error)"
           self.glassesIssue = .reconnecting
         }
       }
@@ -424,6 +427,9 @@ class StreamSessionViewModel: ObservableObject {
   }
 
   @Published var glassesIssue: GlassesIssue?
+  /// Raw text of the last DAT error, shown under the placeholder so a stuck
+  /// "Reconnecting" says what the SDK actually reported.
+  @Published var glassesErrorDetail: String?
 
   func handleStartStreaming() async {
     glassesIssue = nil
@@ -445,8 +451,11 @@ class StreamSessionViewModel: ObservableObject {
         await startSession()
         return
       }
+      glassesErrorDetail = "permission request returned \(requestStatus)"
       glassesIssue = .permissionNeeded
     } catch {
+      glassesErrorDetail = "permission: \(error)"
+      NSLog("[Stream] permission check/request failed: %@", String(describing: error))
       // Sleeping or out-of-range glasses are a wait state, not an error.
       let text = String(describing: error).lowercased()
       if text.contains("powered off") || text.contains("disconnected") || text.contains("no device") {
@@ -481,6 +490,7 @@ class StreamSessionViewModel: ObservableObject {
       streamingStatus = .waiting
       try session.start()
     } catch {
+      glassesErrorDetail = "session: \(error)"
       glassesIssue = mapDeviceSessionError(error)
       deviceSession = nil
       if userWantsCall {
@@ -580,6 +590,7 @@ class StreamSessionViewModel: ObservableObject {
     case .streaming:
       streamingStatus = .streaming
       glassesIssue = nil
+      glassesErrorDetail = nil
     }
   }
 }

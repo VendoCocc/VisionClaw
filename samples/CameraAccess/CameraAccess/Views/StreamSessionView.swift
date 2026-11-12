@@ -34,6 +34,12 @@ struct StreamSessionView: View {
   }
 
   private var glassesPlaceholder: (title: String, caption: String) {
+    let base = baseGlassesPlaceholder
+    guard viewModel.glassesIssue != nil, let detail = viewModel.glassesErrorDetail else { return base }
+    return (base.title, "\(base.caption)\n\nError: \(detail)")
+  }
+
+  private var baseGlassesPlaceholder: (title: String, caption: String) {
     switch viewModel.glassesIssue {
     case .sdkUnavailable:
       return ("Glasses unavailable", "The glasses SDK is not available on this device.")
