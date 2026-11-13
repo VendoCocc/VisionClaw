@@ -116,8 +116,9 @@ textarea { resize: vertical; min-height: 80px; }
   border-radius: 14px; padding: 14px;
 }
 .day.next { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
-.day .badge {
-  grid-row: span 3; width: 48px; height: 48px; border-radius: 50%;
+.day .badge { grid-row: span 3; }
+.badge {
+  flex: none; width: 48px; height: 48px; border-radius: 50%;
   display: grid; place-items: center; font-family: var(--font-display); font-size: 1.5rem; font-weight: 700;
   background: var(--accent-soft); color: var(--accent); border: 3px solid var(--accent);
 }
@@ -306,7 +307,7 @@ ol.steps { margin: 6px 0 0; padding-left: 20px; }
     catch (e) { storageOk = false; }
   }
 
-  var ui = { tab: 'oggi', editingId: null, planEdit: false, chartEx: null, armed: null, addingEx: false, backupText: '' };
+  var ui = { tab: 'oggi', editingId: null, preview: null, planEdit: false, chartEx: null, armed: null, addingEx: false, backupText: '' };
   var app = document.getElementById('app');
 
   // ---------- helpers on data ----------
@@ -398,7 +399,7 @@ ol.steps { margin: 6px 0 0; padding-left: 20px; }
 
   function viewOggi() {
     var s = currentSession();
-    if (!s) return viewPicker();
+    if (!s) return ui.preview != null ? viewPreview() : viewPicker();
     return viewSession(s);
   }
 
@@ -409,15 +410,39 @@ ol.steps { margin: 6px 0 0; padding-left: 20px; }
     if (S.plan.example) h += '<p class="muted small">Stai usando una scheda di esempio. Modificala o sostituiscila con la tua dalla sezione Scheda.</p>';
     S.plan.days.forEach(function (d) {
       var isNext = nd && nd.id === d.id;
-      h += '<button class="day' + (isNext ? ' next' : '') + '" data-act="start" data-id="' + d.id + '">' +
+      h += '<button class="day' + (isNext ? ' next' : '') + '" data-act="preview" data-id="' + d.id + '">' +
         '<span class="badge">' + esc(d.name.slice(0, 2)) + '</span>' +
         '<span class="row spread"><h3>Giorno ' + esc(d.name) + (d.focus ? ' · ' + esc(d.focus) : '') + '</h3>' + (isNext ? '<span class="tag">Prossimo</span>' : '') + '</span>' +
-        '<span class="list">' + d.exercises.length + ' esercizi</span>' +
+        '<span class="list">' + d.exercises.length + ' esercizi · tocca per vedere</span>' +
         '<span class="list">' + esc(d.exercises.map(function (e) { return e.name; }).join(' · ')) + '</span></button>';
     });
-    h += '<button class="btn block" data-act="start" data-id="">+ Allenamento libero (senza scheda)</button></div>';
+    h += '<button class="btn block" data-act="preview" data-id="">+ Allenamento libero (senza scheda)</button></div>';
     var last = sessionsSorted()[0];
     if (last) h += '<p class="muted small">Ultimo allenamento: ' + esc(fmtLong(last.date)) + ' · ' + esc(last.dayName) + '</p>';
+    return h;
+  }
+
+  function viewPreview() {
+    var day = S.plan.days.find(function (d) { return d.id === ui.preview; });
+    var h = header('Oggi', fmtLong(todayStr()));
+    h += '<div><button class="btn sm ghost" data-act="back">← Scegli un altro giorno</button></div>';
+    if (!day) {
+      h += '<section class="card stack"><h2>Allenamento libero</h2><p class="muted">Parti senza esercizi e aggiungi quelli che fai man mano.</p></section>';
+    } else {
+      h += '<section class="card plan-day"><div class="row" style="flex-wrap:nowrap;gap:14px"><span class="badge">' + esc(day.name.slice(0, 2)) + '</span>' +
+        '<div style="min-width:0"><h2>Giorno ' + esc(day.name) + '</h2>' + (day.focus ? '<p class="muted">' + esc(day.focus) + '</p>' : '') + '</div></div>';
+      if (day.exercises.length) {
+        h += '<table class="plan-table"><tbody>' + day.exercises.map(function (e) {
+          var last = lastPerformance(e.name, null), lw = NaN;
+          if (last) last.sets.forEach(function (st) { var w = num(st.w); if (!isNaN(w) && (isNaN(lw) || w > lw)) lw = w; });
+          return '<tr><td>' + esc(e.name) + '<span class="note">' + (last ? 'Ultima volta ' + fmtKg(lw) + ' kg · ' + esc(fmtShort(last.date)) : 'Mai fatto finora') + (e.note ? ' · ' + esc(e.note) : '') + '</span></td>' +
+            '<td><b>' + esc(e.sets) + '×' + esc(e.reps) + '</b><span class="note">' + fmtRest(e.rest) + '</span></td></tr>';
+        }).join('') + '</tbody></table>';
+      } else h += '<p class="muted small">Questo giorno non ha esercizi: puoi aggiungerli durante l\'allenamento.</p>';
+      h += '</section>';
+    }
+    h += '<div class="stack"><button class="btn primary block" data-act="start" data-id="' + (day ? day.id : '') + '">Inizia allenamento</button>' +
+      '<button class="btn block" data-act="back">Indietro</button></div>';
     return h;
   }
 
@@ -426,6 +451,11 @@ ol.steps { margin: 6px 0 0; padding-left: 20px; }
     var isToday = s.date === todayStr();
     var h = header(isToday ? 'Oggi' : 'Modifica', fmtLong(s.date));
     if (!isToday || ui.editingId) h += '<div class="row spread"><span class="muted small">Stai modificando un allenamento passato.</span><button class="btn sm" data-act="closeEdit">Chiudi</button></div>';
+    else if (!s.finishedAt) {
+      var armedSw = ui.armed === 'switch';
+      h += '<div class="stack"><div><button class="btn sm ' + (armedSw ? 'danger armed' : 'ghost') + '" data-act="switchDay">' +
+        (armedSw ? 'Tocca di nuovo: ' + (c.done === 1 ? 'la serie fatta verrà persa' : 'le ' + c.done + ' serie fatte verranno perse') : '← Cambia allenamento') + '</button></div></div>';
+    }
     h += '<div class="stack"><div class="row spread"><h2>' + esc(s.dayName) + '</h2>' + (s.finishedAt ? '<span class="tag" style="background:var(--ok)">Completato</span>' : '') + '</div>' +
       '<div class="meter" role="progressbar" aria-valuemin="0" aria-valuemax="' + c.total + '" aria-valuenow="' + c.done + '"><i style="width:' + (c.total ? Math.round(c.done / c.total * 100) : 0) + '%"></i></div>' +
       '<div class="stats"><div class="stat"><b>' + c.exDone + '/' + c.exTotal + '</b><span>Esercizi</span></div><div class="stat"><b>' + c.done + '/' + c.total + '</b><span>Serie</span></div><div class="stat"><b>' + Math.round(vol).toLocaleString('it-IT') + '</b><span>Volume kg</span></div></div></div>';
@@ -488,7 +518,7 @@ ol.steps { margin: 6px 0 0; padding-left: 20px; }
         h += '<div class="row spread"><button class="linkbtn" data-act="peAdd">+ Esercizio</button>' +
           '<button class="btn sm danger' + (ui.armed === 'day' + d.id ? ' armed' : '') + '" data-act="dayDel">' + (ui.armed === 'day' + d.id ? 'Conferma eliminazione' : 'Elimina giorno') + '</button></div>';
       } else {
-        h += '<div class="row spread"><h3>Giorno ' + esc(d.name) + (d.focus ? ' · ' + esc(d.focus) : '') + '</h3><button class="btn sm primary" data-act="start" data-id="' + d.id + '">Inizia</button></div>';
+        h += '<div class="row spread"><h3>Giorno ' + esc(d.name) + (d.focus ? ' · ' + esc(d.focus) : '') + '</h3><button class="btn sm primary" data-act="preview" data-id="' + d.id + '">Inizia</button></div>';
         if (d.exercises.length) {
           h += '<table class="plan-table"><tbody>' + d.exercises.map(function (e) {
             return '<tr><td>' + esc(e.name) + (e.note ? '<span class="note">' + esc(e.note) + '</span>' : '') + '</td><td><b>' + esc(e.sets) + '×' + esc(e.reps) + '</b><span class="note">' + fmtRest(e.rest) + '</span></td></tr>';
@@ -638,10 +668,18 @@ ol.steps { margin: 6px 0 0; padding-left: 20px; }
     var exEl = b.closest('[data-ei]'), e = (s && exEl) ? s.exercises[+exEl.getAttribute('data-ei')] : null;
     var dayEl = b.closest('[data-di]'), day = dayEl ? S.plan.days[+dayEl.getAttribute('data-di')] : null;
     var peEl = b.closest('[data-xi]'), pi = peEl ? +peEl.getAttribute('data-xi') : -1;
-    if (act !== ui.armed && !/Del$|^reset|^import$/.test(act)) ui.armed = null;
+    if (act !== ui.armed && !/Del$|^reset|^import$|^switchDay$/.test(act)) ui.armed = null;
 
     switch (act) {
-      case 'start': ui.tab = 'oggi'; location.hash = 'oggi'; startSession(b.getAttribute('data-id')); return;
+      case 'preview': ui.preview = b.getAttribute('data-id'); ui.tab = 'oggi'; if (location.hash !== '#oggi') location.hash = 'oggi'; render(); window.scrollTo(0, 0); return;
+      case 'back': ui.preview = null; render(); window.scrollTo(0, 0); return;
+      case 'start': ui.preview = null; ui.tab = 'oggi'; if (location.hash !== '#oggi') location.hash = 'oggi'; startSession(b.getAttribute('data-id')); return;
+      case 'switchDay': {
+        var nDone = sessionCounts(s).done;
+        if (nDone && !arm('switch')) return;
+        S.sessions.splice(S.sessions.indexOf(s), 1); ui.armed = null; ui.preview = null; ui.addingEx = false; stopTimer(); save(); render(); window.scrollTo(0, 0);
+        return;
+      }
       case 'toggle': {
         var si = +b.closest('[data-si]').getAttribute('data-si'), st = e.sets[si];
         st.done = !st.done; save(); render();
@@ -710,6 +748,7 @@ ol.steps { margin: 6px 0 0; padding-left: 20px; }
       }
     }
     if (ui.tab === 'scheda') {
+      S.plan.example = false;
       if (t.getAttribute('data-pf') === 'name') { S.plan.name = t.value; save(); return; }
       var dayEl = t.closest('[data-di]'); if (!dayEl) return;
       var day = S.plan.days[+dayEl.getAttribute('data-di')];
@@ -737,7 +776,7 @@ ol.steps { margin: 6px 0 0; padding-left: 20px; }
   function fromHash() {
     var h = (location.hash || '').replace('#', '');
     var next = ['oggi', 'scheda', 'storico', 'dati'].indexOf(h) >= 0 ? h : 'oggi';
-    if (next !== ui.tab) { ui.tab = next; ui.armed = null; ui.addingEx = false; if (next !== 'oggi') ui.editingId = null; }
+    if (next !== ui.tab) { ui.tab = next; ui.armed = null; ui.addingEx = false; if (next !== 'oggi') { ui.editingId = null; ui.preview = null; } }
     render();
   }
   window.addEventListener('hashchange', function () { fromHash(); window.scrollTo(0, 0); });
