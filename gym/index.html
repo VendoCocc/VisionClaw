@@ -241,6 +241,7 @@ ol.steps { margin: 6px 0 0; padding-left: 20px; }
 (function () {
   'use strict';
   var KEY = 'diario-palestra-v1';
+  var APP_VERSION = '4';
   var ICON_CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
   var ICON_X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
   var ICON_UP = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 14l6-6 6 6"/></svg>';
@@ -604,7 +605,7 @@ ol.steps { margin: 6px 0 0; padding-left: 20px; }
     h += '<section class="card stack"><h2>Ripristina</h2>' +
       '<button class="btn danger' + (ui.armed === 'resetPlan' ? ' armed' : '') + '" data-act="resetPlan">' + (ui.armed === 'resetPlan' ? 'Conferma: torna alla scheda iniziale' : 'Torna alla scheda iniziale') + '</button>' +
       '<button class="btn danger' + (ui.armed === 'resetAll' ? ' armed' : '') + '" data-act="resetAll">' + (ui.armed === 'resetAll' ? 'Conferma: cancella tutto' : 'Cancella tutti i dati') + '</button>' +
-      '<p class="small muted num">' + S.sessions.length + ' allenamenti salvati · ' + S.plan.days.length + ' giorni in scheda</p></section>';
+      '<p class="small muted num">' + S.sessions.length + ' allenamenti salvati · ' + S.plan.days.length + ' giorni in scheda · versione app ' + APP_VERSION + '</p></section>';
     return h;
   }
 
@@ -783,7 +784,15 @@ ol.steps { margin: 6px 0 0; padding-left: 20px; }
   fromHash();
 
   if ('serviceWorker' in navigator && location.protocol === 'https:') {
-    try { navigator.serviceWorker.register('sw.js').catch(function () {}); } catch (e) {}
+    try {
+      var hadController = !!navigator.serviceWorker.controller, reloaded = false;
+      navigator.serviceWorker.addEventListener('controllerchange', function () {
+        if (hadController && !reloaded) { reloaded = true; location.reload(); }
+      });
+      navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(function (reg) {
+        document.addEventListener('visibilitychange', function () { if (!document.hidden) reg.update().catch(function () {}); });
+      }).catch(function () {});
+    } catch (e) {}
   }
 })();
 </script>

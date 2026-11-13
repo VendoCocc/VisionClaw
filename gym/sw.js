@@ -1,5 +1,5 @@
 // Offline cache for Diario di Palestra. Bump VERSION when files change.
-const VERSION = 'palestra-v2';
+const VERSION = 'palestra-v4';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon.svg', './icon-180.png', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (e) => {
@@ -19,7 +19,7 @@ self.addEventListener('fetch', (e) => {
   if (req.method !== 'GET') return;
   if (req.mode === 'navigate') {
     e.respondWith(
-      fetch(req).then((res) => {
+      fetch(req, { cache: 'no-cache' }).then((res) => {
         const copy = res.clone();
         caches.open(VERSION).then((c) => c.put('./index.html', copy));
         return res;
