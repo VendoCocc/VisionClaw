@@ -222,6 +222,7 @@ ol.steps { margin: 6px 0 0; padding-left: 20px; }
 <div class="timer" id="timer" hidden>
   <div class="t" id="timerT">0:00</div>
   <div class="lbl" id="timerL">Recupero</div>
+  <button type="button" id="tLock" aria-label="Metti il timer sul blocco schermo" title="Timer sul blocco schermo" hidden><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="display:block"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></button>
   <button type="button" id="tMinus">−15</button>
   <button type="button" id="tPlus">+15</button>
   <button type="button" id="tStop" aria-label="Chiudi timer">✕</button>
@@ -241,7 +242,7 @@ ol.steps { margin: 6px 0 0; padding-left: 20px; }
 (function () {
   'use strict';
   var KEY = 'diario-palestra-v1';
-  var APP_VERSION = '5';
+  var APP_VERSION = '6';
   var SHORTCUT_NAME = 'Recupero';
   function sysTimerOn() { return !!(S.settings && S.settings.sysTimer); }
   function runSysTimer(sec) { try { location.href = 'shortcuts://run-shortcut?name=' + encodeURIComponent(SHORTCUT_NAME) + '&input=text&text=' + encodeURIComponent(String(sec)); } catch (e) {} }
@@ -598,7 +599,7 @@ ol.steps { margin: 6px 0 0; padding-left: 20px; }
     var h = header('Dati', null);
     var on = sysTimerOn();
     h += '<section class="card stack"><div class="row spread"><h2>Timer sul blocco schermo</h2>' + (on ? '<span class="tag" style="background:var(--ok)">Attivo</span>' : '') + '</div>' +
-      '<p class="small muted">Su iPhone, quando spunti una serie l’app fa partire anche il timer dell’app Orologio, che si vede sul blocco schermo e suona alla fine del recupero. Serve un comando rapido da creare una volta sola.</p>' +
+      '<p class="small muted">Su iPhone puoi mandare il recupero al timer dell’app Orologio, che si vede sul blocco schermo e suona alla fine. Quando è attivo, nel timer dell’app compare un lucchetto: toccalo solo quando vuoi bloccare il telefono. Serve un comando rapido da creare una volta sola.</p>' +
       '<details' + (on ? '' : ' open') + '><summary>Crea il comando (1 minuto)</summary><ol class="steps">' +
         '<li>Apri l’app <b>Comandi</b> e tocca <b>+</b> in alto a destra.</li>' +
         '<li>Tocca il nome in alto e chiamalo esattamente <b>' + SHORTCUT_NAME + '</b>.</li>' +
@@ -608,7 +609,7 @@ ol.steps { margin: 6px 0 0; padding-left: 20px; }
       '</ol></details>' +
       '<div class="row"><button class="btn ' + (on ? '' : 'primary') + '" data-act="sysTimer">' + (on ? 'Disattiva' : 'Attiva') + '</button>' +
       '<button class="btn" data-act="sysTimerTest">Prova (10 secondi)</button></div>' +
-      '<p class="small muted">Dopo aver spuntato la serie si apre per un attimo Comandi: blocca pure il telefono e vedrai il conto alla rovescia. La prima volta iPhone può chiederti il permesso.</p></section>';
+      '<p class="small muted">Toccando il lucchetto si apre per un attimo Comandi (iPhone non permette di evitarlo): blocca pure il telefono e vedrai il conto alla rovescia. Per tornare all’app tocca “◀” in alto a sinistra o riaprila dall’icona.</p></section>';
     h += '<section class="card stack"><h2>Metti l’app sulla schermata Home</h2>' +
       '<details open><summary>iPhone (Safari)</summary><ol class="steps"><li>Apri questa pagina in Safari.</li><li>Tocca il pulsante Condividi (il quadrato con la freccia).</li><li>Scegli “Aggiungi alla schermata Home”, poi “Aggiungi”.</li></ol></details>' +
       '<details><summary>Android (Chrome)</summary><ol class="steps"><li>Apri questa pagina in Chrome.</li><li>Tocca il menu ⋮ in alto a destra.</li><li>Scegli “Installa app” oppure “Aggiungi a schermata Home”.</li></ol></details>' +
@@ -658,6 +659,7 @@ ol.steps { margin: 6px 0 0; padding-left: 20px; }
     try { audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)(); if (audioCtx.state === 'suspended') audioCtx.resume(); } catch (e) {}
     timer.end = Date.now() + sec * 1000; timer.label = label; timer.fired = false;
     document.getElementById('timer').hidden = false;
+    document.getElementById('tLock').hidden = !sysTimerOn();
     clearInterval(timer.iv); timer.iv = setInterval(tick, 250); tick();
   }
   function tick() {
@@ -673,6 +675,10 @@ ol.steps { margin: 6px 0 0; padding-left: 20px; }
   document.getElementById('tMinus').addEventListener('click', function () { timer.end -= 15000; tick(); });
   document.getElementById('tPlus').addEventListener('click', function () { timer.end += 15000; timer.fired = false; tick(); });
   document.getElementById('tStop').addEventListener('click', stopTimer);
+  document.getElementById('tLock').addEventListener('click', function () {
+    var left = Math.round((timer.end - Date.now()) / 1000);
+    if (left > 3) runSysTimer(left);
+  });
 
   // ---------- events ----------
   function arm(key) { if (ui.armed === key) return true; ui.armed = key; render(); setTimeout(function () { if (ui.armed === key) { ui.armed = null; render(); } }, 4000); return false; }
@@ -699,7 +705,7 @@ ol.steps { margin: 6px 0 0; padding-left: 20px; }
       case 'toggle': {
         var si = +b.closest('[data-si]').getAttribute('data-si'), st = e.sets[si];
         st.done = !st.done; save(); render();
-        if (st.done && !s.finishedAt) { startTimer(e.rest || 90, e.name); if (sysTimerOn()) runSysTimer(e.rest || 90); }
+        if (st.done && !s.finishedAt) startTimer(e.rest || 90, e.name);
         return;
       }
       case 'setAdd': { var lastSet = e.sets[e.sets.length - 1] || { w: '', r: '' }; e.sets.push({ w: lastSet.w, r: lastSet.r, done: false }); save(); render(); return; }
