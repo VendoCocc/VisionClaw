@@ -241,7 +241,10 @@ ol.steps { margin: 6px 0 0; padding-left: 20px; }
 (function () {
   'use strict';
   var KEY = 'diario-palestra-v1';
-  var APP_VERSION = '4';
+  var APP_VERSION = '5';
+  var SHORTCUT_NAME = 'Recupero';
+  function sysTimerOn() { return !!(S.settings && S.settings.sysTimer); }
+  function runSysTimer(sec) { try { location.href = 'shortcuts://run-shortcut?name=' + encodeURIComponent(SHORTCUT_NAME) + '&input=text&text=' + encodeURIComponent(String(sec)); } catch (e) {} }
   var ICON_CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
   var ICON_X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
   var ICON_UP = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 14l6-6 6 6"/></svg>';
@@ -593,6 +596,19 @@ ol.steps { margin: 6px 0 0; padding-left: 20px; }
 
   function viewDati() {
     var h = header('Dati', null);
+    var on = sysTimerOn();
+    h += '<section class="card stack"><div class="row spread"><h2>Timer sul blocco schermo</h2>' + (on ? '<span class="tag" style="background:var(--ok)">Attivo</span>' : '') + '</div>' +
+      '<p class="small muted">Su iPhone, quando spunti una serie l’app fa partire anche il timer dell’app Orologio, che si vede sul blocco schermo e suona alla fine del recupero. Serve un comando rapido da creare una volta sola.</p>' +
+      '<details' + (on ? '' : ' open') + '><summary>Crea il comando (1 minuto)</summary><ol class="steps">' +
+        '<li>Apri l’app <b>Comandi</b> e tocca <b>+</b> in alto a destra.</li>' +
+        '<li>Tocca il nome in alto e chiamalo esattamente <b>' + SHORTCUT_NAME + '</b>.</li>' +
+        '<li>Tocca <b>Aggiungi azione</b>, cerca <b>Avvia timer</b> e toccalo.</li>' +
+        '<li>Nell’azione tocca il numero (es. “30”), scegli la variabile <b>Input comando</b>; poi tocca “minuti” e scegli <b>secondi</b>.</li>' +
+        '<li>Tocca <b>Fine</b>. Poi torna qui e premi “Prova”.</li>' +
+      '</ol></details>' +
+      '<div class="row"><button class="btn ' + (on ? '' : 'primary') + '" data-act="sysTimer">' + (on ? 'Disattiva' : 'Attiva') + '</button>' +
+      '<button class="btn" data-act="sysTimerTest">Prova (10 secondi)</button></div>' +
+      '<p class="small muted">Dopo aver spuntato la serie si apre per un attimo Comandi: blocca pure il telefono e vedrai il conto alla rovescia. La prima volta iPhone può chiederti il permesso.</p></section>';
     h += '<section class="card stack"><h2>Metti l’app sulla schermata Home</h2>' +
       '<details open><summary>iPhone (Safari)</summary><ol class="steps"><li>Apri questa pagina in Safari.</li><li>Tocca il pulsante Condividi (il quadrato con la freccia).</li><li>Scegli “Aggiungi alla schermata Home”, poi “Aggiungi”.</li></ol></details>' +
       '<details><summary>Android (Chrome)</summary><ol class="steps"><li>Apri questa pagina in Chrome.</li><li>Tocca il menu ⋮ in alto a destra.</li><li>Scegli “Installa app” oppure “Aggiungi a schermata Home”.</li></ol></details>' +
@@ -683,7 +699,7 @@ ol.steps { margin: 6px 0 0; padding-left: 20px; }
       case 'toggle': {
         var si = +b.closest('[data-si]').getAttribute('data-si'), st = e.sets[si];
         st.done = !st.done; save(); render();
-        if (st.done && !s.finishedAt) startTimer(e.rest || 90, e.name);
+        if (st.done && !s.finishedAt) { startTimer(e.rest || 90, e.name); if (sysTimerOn()) runSysTimer(e.rest || 90); }
         return;
       }
       case 'setAdd': { var lastSet = e.sets[e.sets.length - 1] || { w: '', r: '' }; e.sets.push({ w: lastSet.w, r: lastSet.r, done: false }); save(); render(); return; }
@@ -715,6 +731,8 @@ ol.steps { margin: 6px 0 0; padding-left: 20px; }
         S.plan.days.push({ id: uid(), name: nm, focus: '', exercises: [ex('', 3, '10', 90)] }); save(); render(); return;
       }
 
+      case 'sysTimer': S.settings = S.settings || {}; S.settings.sysTimer = !S.settings.sysTimer; save(); render(); toast(S.settings.sysTimer ? 'Timer sul blocco schermo attivo' : 'Timer sul blocco schermo disattivato'); return;
+      case 'sysTimerTest': runSysTimer(10); return;
       case 'export': {
         var txt = JSON.stringify(S);
         ui.backupText = txt; render();

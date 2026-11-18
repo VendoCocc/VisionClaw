@@ -1,5 +1,5 @@
 // Offline cache for Diario di Palestra. Bump VERSION when files change.
-const VERSION = 'palestra-v4';
+const VERSION = 'palestra-v5';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon.svg', './icon-180.png', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (e) => {
